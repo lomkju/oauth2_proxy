@@ -25,7 +25,7 @@ type GoogleProvider struct {
 	RedeemRefreshURL *url.URL
 	// GroupValidator is a function that determines if the passed email is in
 	// the configured Google group.
-	GroupValidator func(string) bool
+	GroupValidator func(*SessionState, string) bool
 }
 
 func NewGoogleProvider(p *ProviderData) *GoogleProvider {
@@ -56,7 +56,7 @@ func NewGoogleProvider(p *ProviderData) *GoogleProvider {
 		ProviderData: p,
 		// Set a default GroupValidator to just always return valid (true), it will
 		// be overwritten if we configured a Google group restriction.
-		GroupValidator: func(email string) bool {
+		GroupValidator: func(s *SessionState, email string) bool {
 			return true
 		},
 	}
@@ -155,8 +155,8 @@ func (p *GoogleProvider) Redeem(redirectURL, code string) (s *SessionState, err 
 // account credentials.
 func (p *GoogleProvider) SetGroupRestriction(groups []string, adminEmail string, credentialsReader io.Reader) {
 	adminService := getAdminService(adminEmail, credentialsReader)
-	p.GroupValidator = func(email string) bool {
-		return userInGroup(adminService, groups, email)
+	p.GroupValidator = func(s *SessionState, email string) bool {
+		return userInGroup(s, adminService, groups, email)
 	}
 }
 
@@ -179,7 +179,7 @@ func getAdminService(adminEmail string, credentialsReader io.Reader) *admin.Serv
 	return adminService
 }
 
-func userInGroup(service *admin.Service, groups []string, email string) bool {
+func userInGroup(s *SessionState, service *admin.Service, groups []string, email string) bool {
 	user, err := fetchUser(service, email)
 	if err != nil {
 		log.Printf("error fetching user: %v", err)
@@ -203,14 +203,17 @@ func userInGroup(service *admin.Service, groups []string, email string) bool {
 			switch member.Type {
 			case "CUSTOMER":
 				if member.Id == custID {
-					return true
+					s.Groups = append(s.Groups, group)
 				}
 			case "USER":
 				if member.Id == id {
-					return true
+					s.Groups = append(s.Groups, group)
 				}
 			}
 		}
+	}
+	if len(s.Groups) > 0 {
+		return true
 	}
 	return false
 }
@@ -245,8 +248,8 @@ func fetchGroupMembers(service *admin.Service, group string) ([]*admin.Member, e
 
 // ValidateGroup validates that the provided email exists in the configured Google
 // group(s).
-func (p *GoogleProvider) ValidateGroup(email string) bool {
-	return p.GroupValidator(email)
+func (p *GoogleProvider) ValidateGroup(s *SessionState, email string) bool {
+	return p.GroupValidator(s, email)
 }
 
 func (p *GoogleProvider) RefreshSessionIfNeeded(s *SessionState) (bool, error) {
@@ -260,7 +263,7 @@ func (p *GoogleProvider) RefreshSessionIfNeeded(s *SessionState) (bool, error) {
 	}
 
 	// re-check that the user is in the proper google group(s)
-	if !p.ValidateGroup(s.Email) {
+	if !p.ValidateGroup(s, s.Email) {
 		return false, fmt.Errorf("%s is no longer in the group(s)", s.Email)
 	}
 

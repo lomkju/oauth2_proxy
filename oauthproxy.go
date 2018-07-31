@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bitly/oauth2_proxy/cookie"
-	"github.com/bitly/oauth2_proxy/providers"
+	"github.com/lomkju/oauth2_proxy/cookie"
+	"github.com/lomkju/oauth2_proxy/providers"
 	"github.com/mbland/hmacauth"
 )
 
@@ -30,6 +30,7 @@ var SignatureHeaders []string = []string{
 	"X-Forwarded-User",
 	"X-Forwarded-Email",
 	"X-Forwarded-Access-Token",
+	"X-Forwarded-Groups",
 	"Cookie",
 	"Gap-Auth",
 }
@@ -567,7 +568,7 @@ func (p *OAuthProxy) OAuthCallback(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// set cookie, or deny
-	if p.Validator(session.Email) && p.provider.ValidateGroup(session.Email) {
+	if p.Validator(session.Email) && p.provider.ValidateGroup(session, session.Email) {
 		log.Printf("%s authentication complete %s", remoteAddr, session)
 		err := p.SaveSession(rw, req, session)
 		if err != nil {
@@ -698,6 +699,7 @@ func (p *OAuthProxy) Authenticate(rw http.ResponseWriter, req *http.Request) int
 	if p.PassAccessToken && session.AccessToken != "" {
 		req.Header["X-Forwarded-Access-Token"] = []string{session.AccessToken}
 	}
+	req.Header["X-Forwarded-Groups"] = []string{strings.Join(session.Groups, ",")}
 	if session.Email == "" {
 		rw.Header().Set("GAP-Auth", session.User)
 	} else {

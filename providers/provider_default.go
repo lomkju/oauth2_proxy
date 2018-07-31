@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/bitly/oauth2_proxy/cookie"
+	"github.com/lomkju/oauth2_proxy/cookie"
 )
 
 func (p *ProviderData) Redeem(redirectURL, code string) (s *SessionState, err error) {
@@ -113,7 +113,7 @@ func (p *ProviderData) GetUserName(s *SessionState) (string, error) {
 
 // ValidateGroup validates that the provided email exists in the configured provider
 // email group(s).
-func (p *ProviderData) ValidateGroup(email string) bool {
+func (p *ProviderData) ValidateGroup(s *SessionState, email string) bool {
 	return true
 }
 
